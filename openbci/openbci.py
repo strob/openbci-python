@@ -31,12 +31,10 @@ class OpenBCI():
         self._send_cmd("b")
 
     def _send_cmd(self, cmd):
-        print self.port.write("%s\n" %(cmd))
-        # time.sleep(0.1)
+        self.port.write("%s\n" %(cmd))
 
     def _read_byte(self):
-        x = self.port.read(1)
-        return struct.unpack("B", x)[0]
+        return struct.unpack("B", self.port.read(1))[0]
 
     def _unpack_value(self, value):
         # Little-endian integer
