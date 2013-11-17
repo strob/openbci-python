@@ -36,9 +36,40 @@ class OpenBCI():
     def _read_byte(self):
         return struct.unpack("B", self.port.read(1))[0]
 
-    def _unpack_value(self, value):
+    def _unpack_int32_value(self, value):
         # Little-endian integer
-        return struct.unpack("<i", value)[0] / float(2**23)
+        return struct.unpack("<i", value)[0]
+
+    def get_microvolts(self, int_value):
+        """Here's the unpacking of the scale factor...
+
+        * Internally, the digitizer in the ADS1299 chip spans zero to
+          4.5 volts...that's the "4.5f".  Before the digitizer it (in
+          my code) * configured for gain of 24x...that's the "24.0f".
+          The ADS1299 takes * that span of (4.5V / 24) and breaks it
+          into 2^24 values...that's the * "pow(2,24)".
+
+          Those three values together would result in "volts per
+          count".  Since I find microvolts more convenient than
+          volts...
+
+        * The "1000000.f" makes the result be microvolts instead of
+          volts
+
+          So, at this point you'd think that you'd be done.  But, I
+          actually tested the OpenBCI board to make sure the
+          conversion factor was correct.  I injected a variety of
+          known signals at a range of amplitudes.  The reported
+          amplitude was always off by a factor of two.  So, that final
+          "2.0f" is the an addition to make the reported values line
+          up with the known-true injected values.
+
+          That's how you get: 
+            (4.5f / 24.0 / pow(2,24)) * 1000000.f * 2.0f;
+
+          -- e-mail from Chip
+        """
+        return 1e6 * (4.5/24) * float(int_value) / 2**23
 
     def __iter__(self):
         return self
@@ -60,7 +91,9 @@ class OpenBCI():
 
         channels = []
         for _i in range(self.NCHANNELS):
-            channels.append(self._unpack_value(self.port.read(4)))
+            channels.append(self.get_microvolts(
+                self._unpack_int32_value(
+                    self.port.read(4))))
 
         # Find the end
         if self._read_byte() == self.BYTE_END:
